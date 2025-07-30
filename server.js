@@ -4,6 +4,7 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DB_FILE = __dirname + '/db.json';
+const crypto = require('crypto');
 
 app.use(cors());
 app.use(express.json());
@@ -80,3 +81,52 @@ app.delete('/api/orders/:index', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Backend running on port ${PORT}`);
 });
+
+// Get all products
+app.get('/api/products', (req, res) => {
+    const db = readDB();
+    res.json(db.products || []);
+});
+
+// Create/update product
+app.post('/api/products', (req, res) => {
+    const db = readDB();
+    const product = req.body;
+    
+    if (!product.id) {
+        // Create new ID
+        product.id = crypto.randomBytes(4).toString('hex');
+        db.products = db.products || [];
+        db.products.push(product);
+    } else {
+        // Update existing
+        const index = db.products.findIndex(p => p.id === product.id);
+        if (index !== -1) {
+            db.products[index] = product;
+        }
+    }
+    
+    writeDB(db);
+    res.json({ success: true, id: product.id });
+});
+
+// Delete product
+app.delete('/api/products/:id', (req, res) => {
+    const db = readDB();
+    db.products = (db.products || []).filter(p => p.id !== req.params.id);
+    writeDB(db);
+    res.json({ success: true });
+});
+
+// Update db.json structure in readDB()
+function readDB() {
+    if (!fs.existsSync(DB_FILE)) {
+        // Initialize with empty products array
+        fs.writeFileSync(DB_FILE, JSON.stringify({ 
+            orders: [], 
+            products: [],
+            stocks: { /* existing stock structure */ }
+        }, null, 2));
+    }
+    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+}
